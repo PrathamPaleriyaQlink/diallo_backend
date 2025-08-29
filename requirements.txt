@@ -1,0 +1,8 @@
+openai==1.99.2
+uvicorn==0.35.0
+python-dotenv==1.1.1
+python-multipart==0.0.20
+fastapi==0.116.1
+groq==0.31.0
+pymongo
+deepgram-sdk 
