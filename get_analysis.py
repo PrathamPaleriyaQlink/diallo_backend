@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 import json
+from prompt.call_analysis_prompt import x_bucket_prompt, y_bucket_prompt
 
 load_dotenv()
 
@@ -11,94 +12,15 @@ openai_client = OpenAI(
     api_key=OPENAI_API_KEY
 )
 
+bucket_prompt = {
+    "x_bucket": x_bucket_prompt,
+    "y_bucket": y_bucket_prompt
+}
 
-def get_call_analysis(transcribe: str):
+
+def get_call_analysis(transcribe: str, bucket: str):
     model = "gpt-4o-mini"
-    instructions = """
-You are a Call Quality Analyzer for Diallo.
-
-INPUT
-You will receive a call transcription in plain text format. Each speaker’s dialogue is separated and labeled:
-Speaker 0:
-   <utterance>
-Speaker 1:
-   <utterance>
-(… and so on)
-
-Your task: Analyze the call strictly based on this transcript and generate a structured report.
-
-OUTPUT FORMAT:
-- Call_summary (string, concise but detailed summary of the conversation)
-- Call_purpose (string, e.g., payment reminder, objection handling)
-- Sentiment_overall (positive | neutral | negative)
-- Sentiment_by_speaker:
-   -- Agent_sentiment (positive | neutral | negative)
-   -- Customer_sentiment (positive | neutral | negative)
-- Payment_discussed (boolean)
-- Payment_amount (string or null)
-- Payment_options_discussed (array of strings)
-- Follow_up_required (boolean)
-- Follow_up_details (string or null)
-- Agent_performance (short evaluation string)
-- Unresolved_issues (array of strings)
-- Summary: 2–3 sentences describing the call’s purpose, flow, and outcome
-- Total Score: [0–10]
-- Individual Scores:
-    -- Greeting & Opening [0–10]
-    -- Objection Handling [0–10]
-    -- Urgency Creation [0–10]
-    -- Payment Process Clarity [0–10]
-    -- Empathy & Tonality [0–10]
-    -- Call Management & Closing [0–10]
-- Positives: Specific good practices observed
-- Improvements: Actionable improvement points
-- Marked Transcript:
-    -- Include only problematic lines, in Markdown:
-       Speaker X: "Exact sentence" [Issue: description]
-
-SCORING CRITERIA
-- Each sub-score 0–10:
-   0–3 = Poor, mostly missing
-   4–6 = Partial/inconsistent
-   7–8 = Good, generally meets expectations
-   9–10 = Excellent, consistent and professional
-- Total Score:
-   -- Default = simple average of 6 categories
-   -- If weighted scoring is enabled:
-        Greeting & Opening – 10%
-        Objection Handling – 20%
-        Urgency Creation – 20%
-        Payment Process Clarity – 20%
-        Empathy & Tonality – 15%
-        Call Management & Closing – 15%
-- Thresholds:
-   Excellent = Total Score ≥ 8.5 and no major violation
-   At Risk = 6.5–8.4 or minor violation(s)
-   Bad = <6.5 or any major violation
-
-GOOD CALL INDICATORS
-- Clear greeting & self-intro
-- Payment amount stated clearly
-- Calm, energetic, empathetic tone
-- Objections handled with solution (extension, alternate contact/payment)
-- Created urgency without aggression
-- Step-by-step guidance given
-- Clear next steps + proper closing
-
-BAD CALL INDICATORS
-- Missing greeting/self-intro/closing
-- Payment amount unclear
-- Negative probing (“pay some amount at least”)
-- No urgency or alternate options
-- Dead air, late opening, poor closure
-- Disinterested, impatient, or unprofessional tone
-
-RULES
-- Judge strictly from transcript (no assumptions).
-- Be objective and tie positives/improvements to specific lines.
-- Marked Transcript must quote the exact line with [Issue: …].
-- Sentiment must be derived from words and tone indicators only.
-"""
+    instructions = bucket_prompt[bucket]
 
     try:
         response = openai_client.responses.create(
@@ -107,80 +29,82 @@ RULES
             input=transcribe,
             text={
                 "format": {
-  "type": "json_schema",
-  "name": "diallo_call_analysis",
-  "schema": {
-      "type": "object",
-    "properties": {
-        "Call_summary": { "type": "string" },
-        "Call_purpose": { "type": "string" },
-        "Sentiment_overall": { "type": "string", "enum": ["positive", "neutral", "negative"] },
-        "Sentiment_by_speaker": {
-        "type": "object",
-        "properties": {
-            "Agent_sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] },
-            "Customer_sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] }
-        },
-        "required": ["Agent_sentiment", "Customer_sentiment"],
-        "additionalProperties": False
-        },
-        "Payment_discussed": { "type": "boolean" },
-        "Payment_amount": { "type": ["string", "null"] },
-        "Payment_options_discussed": { "type": "array", "items": { "type": "string" } },
-        "Follow_up_required": { "type": "boolean" },
-        "Follow_up_details": { "type": ["string", "null"] },
-        "Agent_performance": { "type": "string" },
-        "Unresolved_issues": { "type": "array", "items": { "type": "string" } },
-        "Summary": { "type": "string" },
-        "Total_Score": { "type": "integer", "minimum": 0, "maximum": 10 },
-        "Individual_Scores": {
-        "type": "object",
-        "properties": {
-            "Greeting_&_Opening": { "type": "integer", "minimum": 0, "maximum": 10 },
-            "Objection_Handling": { "type": "integer", "minimum": 0, "maximum": 10 },
-            "Urgency_Creation": { "type": "integer", "minimum": 0, "maximum": 10 },
-            "Payment_Process_Clarity": { "type": "integer", "minimum": 0, "maximum": 10 },
-            "Empathy_&_Tonality": { "type": "integer", "minimum": 0, "maximum": 10 },
-            "Call_Management_&_Closing": { "type": "integer", "minimum": 0, "maximum": 10 }
-        },
-        "required": [
-            "Greeting_&_Opening",
-            "Objection_Handling",
-            "Urgency_Creation",
-            "Payment_Process_Clarity",
-            "Empathy_&_Tonality",
-            "Call_Management_&_Closing"
-        ],
-        "additionalProperties": False
-        },
-        "Positives": { "type": "array", "items": { "type": "string" } },
-        "Improvements": { "type": "array", "items": { "type": "string" } },
-        "Marked_Transcript": { "type": "string" }
-    },
-    "required": [
-        "Call_summary",
-        "Call_purpose",
-        "Sentiment_overall",
-        "Sentiment_by_speaker",
-        "Payment_discussed",
-        "Payment_amount",
-        "Payment_options_discussed",
-        "Follow_up_required",
-        "Follow_up_details",
-        "Agent_performance",
-        "Unresolved_issues",
-        "Summary",
-        "Total_Score",
-        "Individual_Scores",
-        "Positives",
-        "Improvements",
-        "Marked_Transcript"
-    ],
-    "additionalProperties": False
-    } }
+                    "type": "json_schema",
+                    "name": "diallo_call_analysis",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "Call_summary": { "type": "string" },
+                            "Call_purpose": { "type": "string" },
+                            "Sentiment_overall": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+                            "Sentiment_by_speaker": {
+                            "type": "object",
+                            "properties": {
+                                "Agent_sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] },
+                                "Customer_sentiment": { "type": "string", "enum": ["positive", "neutral", "negative"] }
+                            },
+                            "required": ["Agent_sentiment", "Customer_sentiment"],
+                            "additionalProperties": False
+                            },
+                            "Payment_discussed": { "type": "boolean" },
+                            "Payment_amount": { "type": ["string", "null"] },
+                            "Payment_options_discussed": { "type": "array", "items": { "type": "string" } },
+                            "Follow_up_required": { "type": "boolean" },
+                            "Follow_up_details": { "type": ["string", "null"] },
+                            "Agent_performance": { "type": "string" },
+                            "Unresolved_issues": { "type": "array", "items": { "type": "string" } },
+                            "Summary": { "type": "string" },
+                            "Total_Score": { "type": "integer", "minimum": 0, "maximum": 10 },
+                            "Individual_Scores": {
+                            "type": "object",
+                            "properties": {
+                                "Greeting_&_Opening": { "type": "integer", "minimum": 0, "maximum": 10 },
+                                "Objection_Handling": { "type": "integer", "minimum": 0, "maximum": 10 },
+                                "Urgency_Creation": { "type": "integer", "minimum": 0, "maximum": 10 },
+                                "Payment_Process_Clarity": { "type": "integer", "minimum": 0, "maximum": 10 },
+                                "Empathy_&_Tonality": { "type": "integer", "minimum": 0, "maximum": 10 },
+                                "Call_Management_&_Closing": { "type": "integer", "minimum": 0, "maximum": 10 }
+                            },
+                            "required": [
+                                "Greeting_&_Opening",
+                                "Objection_Handling",
+                                "Urgency_Creation",
+                                "Payment_Process_Clarity",
+                                "Empathy_&_Tonality",
+                                "Call_Management_&_Closing"
+                            ],
+                            "additionalProperties": False
+                            },
+                            "Positives": { "type": "array", "items": { "type": "string" } },
+                            "Improvements": { "type": "array", "items": { "type": "string" } },
+                            "Marked_Transcript": { "type": "string" }
+                        },
+                        "required": [
+                            "Call_summary",
+                            "Call_purpose",
+                            "Sentiment_overall",
+                            "Sentiment_by_speaker",
+                            "Payment_discussed",
+                            "Payment_amount",
+                            "Payment_options_discussed",
+                            "Follow_up_required",
+                            "Follow_up_details",
+                            "Agent_performance",
+                            "Unresolved_issues",
+                            "Summary",
+                            "Total_Score",
+                            "Individual_Scores",
+                            "Positives",
+                            "Improvements",
+                            "Marked_Transcript"
+                        ],
+                        "additionalProperties": False
+                    } 
                 }
+            }
         )
 
+        print(response)
         return json.loads(response.output[0].content[0].text)
     except Exception as e:
         print(f"Analysis Error: {e}")

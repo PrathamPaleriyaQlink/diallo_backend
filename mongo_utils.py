@@ -10,9 +10,35 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 client = MongoClient(MONGODB_URI)
 db = client["demo"]
 calls_collection = db["diallo"]
+agents_collection = db["diallo_agent"]
+
+def list_agents():
+    try:
+        docs_cursor = agents_collection.find({}, {"_id": 0, "name": 1})
+        return [doc.get("name", "") for doc in docs_cursor]
+    except Exception as e:
+        print(f"[General Error] {e}")
+        return None
+    
+def get_or_create_agent(agent_name: str):
+    try:
+        agent = agents_collection.find_one({"name": agent_name})
+        if agent:
+            return str(agent["_id"])
+        else:
+            result = agents_collection.insert_one({
+                "name": agent_name,
+                "created_at": datetime.now()
+            })
+            return str(result.inserted_id)
+    except Exception as e:
+        print(f"[General Error] {e}")
+        return None
 
 def update_data(
     agent_name: str,
+    agent_id: str,
+    bucket: str,
     patient_name: str,
     agent_phone_number: str,
     analystics: str,
@@ -22,8 +48,10 @@ def update_data(
     try:
         result = calls_collection.insert_one(
             {
+                "agent_id": ObjectId(agent_id),
                 "agent_name": agent_name,
                 "patient_name": patient_name,
+                "bucket": bucket,
                 "agent_phone_number": agent_phone_number,
                 "analysis": analystics,
                 "transcribe": transcribe,
@@ -44,7 +72,8 @@ def get_data_by_id(id: str):
     try:
         doc = calls_collection.find_one({"_id": ObjectId(id)})
         if doc:
-            doc["_id"] = str(doc["_id"])  # convert ObjectId to string for JSON serialization
+            doc["_id"] = str(doc["_id"])
+            doc["agent_id"] = str(doc["agent_id"])
         return doc
     except Exception as e:
         print(f"[General Error] {e}")

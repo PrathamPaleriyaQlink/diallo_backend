@@ -2,7 +2,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, File, UploadFile, Form
 from get_transcribe import transcribe_audio, transcribe_audio_openai, transcribe_audio_deepgram
 from get_analysis import get_call_analysis
-from mongo_utils import update_data, get_all_docs, get_data_by_id
+from mongo_utils import update_data, get_all_docs, get_data_by_id, get_or_create_agent, list_agents
 import uuid, os, shutil, subprocess
 
 app = FastAPI(
@@ -38,7 +38,7 @@ def ping():
 
 @app.post("/transcribe")
 async def transcribe(
-    tts_model: str,
+    bucket: str,
     file: UploadFile = File(...),
     agent_name: str = Form(...),
     patient_name: str = Form(...),
@@ -57,6 +57,8 @@ async def transcribe(
 
 
     try:
+        agent_id = get_or_create_agent(agent_name=agent_name_var)
+
         # Convert GSM → WAV (fastest) or MP3 if needed
         if ext == "gsm":
             wav_filename = f"temp_{uuid.uuid4().hex}.wav"
@@ -72,20 +74,16 @@ async def transcribe(
             temp_filename = mp3_filename
             ext = "mp3"
 
-        transcribe_func = TRANSCRIBE_FUNCTIONS.get(tts_model.lower())
-        if not transcribe_func:
-            return {
-                "success": False,
-                "response": f"Invalid tts_model: {tts_model}. Use one of {list(TRANSCRIBE_FUNCTIONS.keys())}."
-            }
-        transcription = transcribe_func(temp_filename)
+        transcription = transcribe_audio_deepgram(temp_filename)
 
         if transcription:
-            analysis = get_call_analysis(transcribe=transcription)
+            analysis = get_call_analysis(transcribe=transcription, bucket=bucket)
 
             if analysis:
                 id = update_data(
                     agent_name=agent_name_var,
+                    agent_id=agent_id,
+                    bucket=bucket,
                     patient_name=patient_name_var,
                     agent_phone_number=agent_phone_number_var,
                     analystics=analysis,
@@ -131,6 +129,17 @@ async def fetch_all_calls():
     """
     try:
         docs = get_all_docs()
+        return {"success": True, "data": docs}
+    except Exception as e:
+        raise {"success": True, "response": f"Error occuered: {e}"}
+    
+@app.get("/agents")
+async def list_all_agnets():
+    """
+    Fetch all agents docs with selected fields.
+    """
+    try:
+        docs = list_agents()
         return {"success": True, "data": docs}
     except Exception as e:
         raise {"success": True, "response": f"Error occuered: {e}"}
