@@ -87,7 +87,8 @@ def get_all_docs():
                 "agent_name": 1,
                 "patient_name": 1,
                 "agent_phone_number": 1,
-                "created_at": 1
+                "created_at": 1,
+                "bucket": 1
             }
         ).sort("created_at", -1)
 

@@ -47,8 +47,8 @@ OUTPUT FORMAT
     -- Payment Process Clarity [0–10]
     -- Empathy & Tonality [0–10]
     -- Call Management & Closing [0–10]
-- Positives: Specific good practices observed
-- Improvements: Actionable improvement points
+- Positives: Specific good practices observed ( 3 points )
+- Improvements: Actionable improvement points ( 3 points )
 - Marked Transcript:
     -- Include only problematic lines, in Markdown:
     Speaker X: "Exact sentence" [Issue: description]
