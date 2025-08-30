@@ -99,7 +99,8 @@ def get_all_docs():
                 "agent_name": doc.get("agent_name"),
                 "patient_name": doc.get("patient_name"),
                 "agent_phone_number": doc.get("agent_phone_number"),
-                "created_at": doc.get("created_at")
+                "created_at": doc.get("created_at"),
+                "bucket": doc.get("bucket"),
             })
 
         return docs_list
