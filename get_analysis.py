@@ -76,8 +76,7 @@ def get_call_analysis(transcribe: str, bucket: str):
                             "additionalProperties": False
                             },
                             "Positives": { "type": "array", "items": { "type": "string" } },
-                            "Improvements": { "type": "array", "items": { "type": "string" } },
-                            "Marked_Transcript": { "type": "string" }
+                            "Improvements": { "type": "array", "items": { "type": "string" } }
                         },
                         "required": [
                             "Call_summary",
@@ -95,8 +94,7 @@ def get_call_analysis(transcribe: str, bucket: str):
                             "Total_Score",
                             "Individual_Scores",
                             "Positives",
-                            "Improvements",
-                            "Marked_Transcript"
+                            "Improvements"
                         ],
                         "additionalProperties": False
                     } 
